@@ -1,0 +1,20 @@
+--- origsrc/lunit-0.8.1/extra/lunit.sh	2018-07-01 02:00:28.000000000 +0900
++++ src/lunit-0.8.1/extra/lunit.sh
+@@ -38,7 +38,7 @@ if [ `uname` = "Darwin" ]; then
+ else
+   scriptname="$(readlink -n -f "$0")"
+ fi
+-interpreter="lua"
++interpreter="lua@LUA_VERSION@"
+ options=""
+ 
+ while true ; do
+@@ -50,7 +50,7 @@ Copyright (c) 2004-2010 Michael Roth <mr
+ Copyright (c) 2011-2015 Doug Currie
+ This program comes WITHOUT WARRANTY OF ANY KIND.
+ 
+-Usage: lunit [OPTIONS] [--] scripts
++Usage: lunit-@LUA_VERSION@ [OPTIONS] [--] scripts
+ 
+ Options:
+ 
