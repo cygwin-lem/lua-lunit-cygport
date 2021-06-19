@@ -1,0 +1,135 @@
+NAME="lua-lunitx"
+VERSION=0.8.1
+RELEASE=1
+CATEGORY="Lua"
+SUMMARY="An extended version of Lunit for Lua"
+DESCRIPTION="\
+Lunitx is a unit testing framework for lua, written in lua,
+based heavily on Lunit 0.5, but modified to work with Lua 5.2.
+"
+HOMEPAGE="https://github.com/dcurrie/lunit/"
+
+GIT_REPO="https://github.com/dcurrie/lunit"
+declare -A GIT_DATEHASH_BY_NAME=(
+  # git log --date=iso-strict --format='%cd/%H' -1
+  [0.8.1]=2018-06-30T13:00:28-04:00/0.8.1
+)
+REV_HASH="${GIT_DATEHASH_BY_NAME[${VERSION}]#*/}"
+REV_DATE="${GIT_DATEHASH_BY_NAME[${VERSION}]%%/*}"
+REV_DATE_SHORT="${REV_DATE%%T*}"
+GIT_BASENAME="${GIT_REPO##*/}"
+SRC_URI="${GIT_REPO}/archive/${REV_HASH}/${GIT_BASENAME}-${VERSION}.tar.gz"
+SRC_DIR="${GIT_BASENAME}-${REV_HASH#v}"
+
+ARCH="noarch"
+
+################################
+LUA_VERSIONS="5.3:5.4"
+LUA_PKG_NAME="${NAME#lua-}"
+source lua.experiment
+
+################################
+## Patch files
+################################
+# Patch filenames are in a default style of 'git format-patch'
+PATCH_URI=$(\
+  find -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9]-*.patch' \
+  | sort \
+)
+# Additional patches, if any
+PATCH_URI+="
+  0.8.1-lunit_sh.patch
+"
+
+################################
+## Requirements for building
+################################
+BUILD_REQUIRES="\
+  lua53-devel\
+  lua54-devel\
+"
+# TEST_REQUIRES="\
+# "
+
+################################
+ABI=0
+
+
+################################
+_CYGPORT_RESTRICT_postinst_doc_=1
+
+set_packages_lua() {
+  __add_pkg "lua${LUA_VERSION_CYG}-${LUA_PKG_NAME}"
+  __set_pkg_property . CONTENTS "
+    usr/share/doc/lua${LUA_VERSION_CYG}-${LUA_PKG_NAME}/
+    usr/*/lua/${LUA_VERSION}/
+  "
+  __set_pkg_property . REQUIRES "lua${LUA_VERSION_CYG}"
+
+  __append_pkg_property . CONTENTS "
+    usr/bin/*-${LUA_VERSION}
+    etc/p*/lua${LUA_VERSION_CYG}-${LUA_PKG_NAME}.sh
+  "
+}
+
+set_packages_lua_versions ${LUA_VERSIONS} ${LUA_PKG_NAME}
+
+################################
+src_compile_lua() {
+  mkdir -p ${B}/${LUA_VERSION}
+  cd  ${B}/${LUA_VERSION}
+
+  lndirs ${S} .
+
+  EXE_LUNIT="./lunit-${LUA_VERSION}"
+  sed -e 's|@LUA_VERSION@|'"${LUA_VERSION}"'|' ./extra/lunit.sh > ${EXE_LUNIT}
+  chmod 755 ${EXE_LUNIT}
+}
+
+################################
+src_install_lua() {
+  cd ${B}/${LUA_VERSION}
+
+  dobin lunit-${LUA_VERSION}
+
+  __doinsdir lua ${LUA_SCRIPTDIR}
+
+  dodoc ANNOUNCE* CHANGES* DOCUMENTATION* LICENSE* PATCHES* README*
+
+  # postinstall/preremove scripts setting alternatives
+  local POSTINSTALL=./postinstall/lua${LUA_VERSION_CYG}-${LUA_PKG_NAME}.sh
+  local PREREMOVE=./preremove/lua${LUA_VERSION_CYG}-${LUA_PKG_NAME}.sh
+
+  mkdir -p ./postinstall
+  mkdir -p ./preremove
+
+  __script_postinstall_lua ${LUA_VERSION} ${LUA_PKG_NAME} <<_EOF > ${POSTINSTALL}
+--slave /usr/bin/lunit lunit /usr/bin/lunit-\${LUA_VERSION} \\
+_EOF
+  __script_preremove_lua ${LUA_VERSION} ${LUA_PKG_NAME} > ${PREREMOVE}
+
+  insinto /etc/postinstall
+  doins ${POSTINSTALL}
+  insinto /etc/preremove
+  doins ${PREREMOVE}
+}
+
+################################
+src_test_lua() {
+  cd ${B}/${LUA_VERSION}
+
+  local TEST_ROOT="./test"
+  local TEST_LUA_PATH="./lua/?.lua"
+  local TEST_LUA_CPATH="./lua/?.so"
+  local TEST_LUA_PKGS=""
+
+  find "${TEST_ROOT}" -maxdepth 1 -name "*test*.lua" -print0 \
+  | while read -r -d '' f; do
+      printf "%s\n" "Testing $f"
+      LUA_PATH="${TEST_LUA_PATH}" \
+      LUA_CPATH="${TEST_LUA_CPATH}" \
+      ${LUA} ${TEST_LUA_PKGS} "$f"
+    done
+}
+
+################################
